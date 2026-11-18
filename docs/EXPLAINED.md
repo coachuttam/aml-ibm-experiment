@@ -65,7 +65,7 @@ Good results deserve suspicion, so we tried to break them.
 
 ## 7. Glossary
 
-- **AML (anti-money-laundering):** the rules and checks banks use to stop criminal money passing through them.
+- **AML (anti-money-laundering):** the rules and checks banks use to stop illicit money passing through them.
 - **STR (suspicious transaction report):** the report a bank sends to the authorities when it suspects laundering. Here the system only drafts one; a person decides.
 - **FIU-IND:** India's Financial Intelligence Unit, the body that receives STRs there.
 - **Typology:** a named laundering pattern, such as fan-out or cycle.

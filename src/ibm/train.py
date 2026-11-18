@@ -152,6 +152,30 @@ def top_feature_names(model, count: int = 8) -> List[Tuple[str, int]]:
     return [(name, int(value)) for name, value in pairs[:count]]
 
 
+def gain_importance(model) -> List[Tuple[str, float]]:
+    """Each feature's total gain (how much it improved the trees' fit), largest first."""
+    gains = model.booster_.feature_importance("gain")
+    return sorted(zip(model.booster_.feature_name(), [float(g) for g in gains]), key=lambda pair: -pair[1])
+
+
+def train_without_features(
+    transactions: pd.DataFrame, features: pd.DataFrame, weight, dropped: List[str]
+) -> Dict[str, object]:
+    """Ablation: retrain with one fixed class weight and some feature columns removed, then score test."""
+    truth = transactions["is_laundering"].to_numpy()
+    train, validation, test = temporal_split(len(transactions))
+    kept = features.drop(columns=dropped)
+    model = fit_model(kept, truth, train, validation, weight)
+    scores = model.predict_proba(kept)[:, 1]
+    threshold = best_f1_threshold(truth[validation], scores[validation])
+    return {
+        "model": model,
+        "scores": scores,
+        "threshold": threshold,
+        "test": score_period(truth[test], scores[test], threshold),
+    }
+
+
 if __name__ == "__main__":
     all_transactions, all_features = prepare_data()
     result = train_and_score(all_transactions, all_features)

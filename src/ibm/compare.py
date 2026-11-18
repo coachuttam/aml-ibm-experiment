@@ -7,13 +7,22 @@ Example:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import pandas as pd
 
 from src.ibm.hybrid import best_rule_for_typology, hybrid_flags
+from src.ibm.investigate import run_investigations, save_records
+from src.ibm.report_extras import ablation_row, gain_table_rows, investigation_lines
 from src.ibm.rules import RULES, run_rules, score_flags
-from src.ibm.train import ModelScores, prepare_data, temporal_split, top_feature_names, train_and_score
+from src.ibm.train import (
+    ModelScores,
+    prepare_data,
+    temporal_split,
+    top_feature_names,
+    train_and_score,
+    train_without_features,
+)
 
 REPORT_PATH = Path("results/ibm_compare.md")
 NOT_LAUNDERING = "NONE"
@@ -82,7 +91,13 @@ def best_rule_row(frame: pd.DataFrame, flags: pd.DataFrame, period: slice) -> Li
     ]
 
 
-def build_report(frame: pd.DataFrame, flags: pd.DataFrame, result: Dict[str, object]) -> str:
+def build_report(
+    frame: pd.DataFrame,
+    flags: pd.DataFrame,
+    result: Dict[str, object],
+    ablation: Optional[Dict[str, object]] = None,
+    investigation: Optional[Dict[str, object]] = None,
+) -> str:
     """The whole markdown report as text."""
     _, _, test = temporal_split(len(frame))
     test_part = frame.iloc[test]
@@ -101,6 +116,15 @@ def build_report(frame: pd.DataFrame, flags: pd.DataFrame, result: Dict[str, obj
         for name in rule_recall
     ]
     top_features = ", ".join("%s (%d)" % pair for pair in top_feature_names(result["model"]))
+    overall_rows = [best_rule_row(frame, flags, test), model_row("LightGBM", result["test"]), hybrid_row]
+    if ablation is not None:
+        overall_rows.append(ablation_row(ablation["test"]))
+    sections = [
+        "## Feature importance (total gain, full model)",
+        markdown_table(["Feature", "Gain", "Share"], gain_table_rows(result["model"])),
+    ]
+    if investigation is not None:
+        sections += ["## Investigations of the top 20 test alerts", "\n".join(investigation_lines(investigation))]
     return (
         "\n\n".join(
             [
@@ -110,9 +134,7 @@ def build_report(frame: pd.DataFrame, flags: pd.DataFrame, result: Dict[str, obj
                 "and every number below is the **test** period."
                 % (len(frame), int(frame["is_laundering"].sum()), 100 * test_part["is_laundering"].mean()),
                 "## Overall (test period)",
-                markdown_table(
-                    header, [best_rule_row(frame, flags, test), model_row("LightGBM", result["test"]), hybrid_row]
-                ),
+                markdown_table(header, overall_rows),
                 "## Each rule alone (test period)",
                 markdown_table(["Rule", "Alerts", "Precision", "Recall"], rule_scores_for(frame, flags, test)),
                 "## Recall by typology (test period)",
@@ -126,6 +148,7 @@ def build_report(frame: pd.DataFrame, flags: pd.DataFrame, result: Dict[str, obj
                 )
                 + "\n\nChosen: %s." % result["weight"],
                 "Most-used model features (split counts): %s." % top_features,
+                *sections,
                 "## Notes",
                 "- Rule thresholds were set by looking at the first 60% of the timeline only.\n"
                 "- Amounts are in each row's own currency; there are no exchange rates, so amount features are rough.\n"
@@ -142,8 +165,11 @@ def main() -> None:
     frame, features = prepare_data()
     flags = run_rules(frame)
     result = train_and_score(frame, features)
+    ablation = train_without_features(frame, features, result["weight"], ["payment_format_code"])
+    investigation = run_investigations(frame, result["scores"])
+    save_records(investigation["records"])
     REPORT_PATH.parent.mkdir(exist_ok=True)
-    REPORT_PATH.write_text(build_report(frame, flags, result))
+    REPORT_PATH.write_text(build_report(frame, flags, result, ablation, investigation))
     print("wrote", REPORT_PATH)
 
 

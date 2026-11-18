@@ -23,6 +23,7 @@ from src.review_scores import build_score_table
 from src.schema import ALL_LABELS, RISK_LEVELS
 from src.upload import UPLOAD_SPLIT
 from evidence_view import show_evidence, show_findings, show_table
+from ibm_view import show_ibm_alerts
 from upload_view import show_upload
 
 SPLIT_CHOICES = {"validation": "validation", "test": "test", "heldout": HELDOUT_NOTE}
@@ -268,14 +269,17 @@ def main() -> None:
     alerts = pick_filters(get_alerts(split))
     st.sidebar.caption(SYNTHETIC_NOTE)
     event_count = len(read_events())
-    queue_tab, detail_tab, live_tab, evaluation_tab, audit_tab = st.tabs(
-        [f"Alerts ({len(alerts)})", "Alert detail", "Live run", "Evaluation", f"Audit log ({event_count})"])
+    queue_tab, detail_tab, live_tab, ibm_tab, evaluation_tab, audit_tab = st.tabs(
+        [f"Alerts ({len(alerts)})", "Alert detail", "Live run", "IBM alerts", "Evaluation",
+         f"Audit log ({event_count})"])
     with queue_tab:
         show_queue(alerts)
     with detail_tab:
         show_detail(alerts, split)
     with live_tab:
         show_upload(get_tuned_config(), show_alert)
+    with ibm_tab:
+        show_ibm_alerts()
     with evaluation_tab:
         show_evaluation()
     with audit_tab:

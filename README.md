@@ -60,6 +60,8 @@ The same rules-versus-model question on the public IBM AML dataset (HI-Small, 5.
 
 The model beats the rules on every typology except UNLISTED, the laundering rows the patterns file does not describe (recall 1.3%, against 42.6% for the rules). The hybrid recovers some of them (14.8%) but costs about ten times the alerts. Giving the laundering class a large weight made the model worse, so the chosen weight is 1.0. Features use only past transactions (see `tests/test_ibm_leakage.py`).
 
+Ablation: removing the payment format feature drops minority F1 from 0.510 to 0.233 and precision@100 from 0.95 to 0.73, so much of the model's edge comes from how the money moved (format), not only from the account behaviour. The `IBM alerts` tab in the app shows the top 20 alerts with evidence, case note and a draft report (typology accuracy against the patterns file: 8 of 19 on those alerts, 37% across the test period).
+
 Run with `python -m src.ibm.compare` (about 15 minutes on a laptop; needs `data/HI-Small_Trans.csv` and `data/HI-Small_Patterns.txt`).
 
 ## Quick start

@@ -9,6 +9,7 @@ Data: IBM HI-Small (5078345 transactions, 5177 laundering, base rate 0.1769% in 
 | Rules (any of R1-R5) | 167778 | 0.0030 | 0.283 | 0.006 | n/a | n/a (no ranking) |
 | LightGBM | 1655 | 0.5317 | 0.490 | 0.510 | 0.460 | 0.95 |
 | Hybrid (model OR R3) | 18383 | 0.0521 | 0.533 | 0.095 | n/a | n/a |
+| LightGBM − payment format | 2477 | 0.2006 | 0.277 | 0.233 | 0.159 | 0.73 |
 
 ## Each rule alone (test period)
 
@@ -48,6 +49,35 @@ The hybrid adds R3, the rule with the best F1 on UNLISTED transactions in the tr
 Chosen: 1.0.
 
 Most-used model features (split counts): receiver_in_degree (132), log_amount_paid (126), sender_in_out_ratio (123), payment_format_code (114), sender_sent_1h (108), receiver_received_1h (106), sender_out_degree (94), sender_sent_7d (91).
+
+## Feature importance (total gain, full model)
+
+| Feature | Gain | Share |
+|---|---|---|
+| log_amount_paid | 273056 | 30.2% |
+| sender_sent_1h | 216887 | 24.0% |
+| receiver_in_degree | 91700 | 10.2% |
+| sender_in_out_ratio | 80572 | 8.9% |
+| payment_format_code | 63143 | 7.0% |
+| sender_sent_7d | 47551 | 5.3% |
+| receiver_received_1h | 45940 | 5.1% |
+| sender_out_degree | 33805 | 3.7% |
+| is_currency_change | 19771 | 2.2% |
+| receiver_received_7d | 16628 | 1.8% |
+| sender_sent_24h | 6582 | 0.7% |
+| receiver_received_24h | 4410 | 0.5% |
+| payment_currency_code | 1499 | 0.2% |
+| is_cross_bank | 1191 | 0.1% |
+| is_round_amount | 64 | 0.0% |
+| is_very_round_amount | 0 | 0.0% |
+
+## Investigations of the top 20 test alerts
+
+- Investigated the 20 highest-scored test alerts; 19 of them are truly laundering.
+- Typology accuracy against the patterns file on those alerts: 8 of 19 (42%).
+- Same classifier on every test-period laundering row with a listed typology: 499 of 1339 (37%).
+- Typologies suggested: Bipartite, Fan-in, Gather-scatter, Scatter-gather.
+- The typology classifier is a LightGBM model trained on training-period laundering rows only. Each investigation is saved in `results/ibm_investigations.jsonl`; nothing is filed or sent.
 
 ## Notes
 

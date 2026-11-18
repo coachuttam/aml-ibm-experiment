@@ -48,6 +48,20 @@ What the results say:
 
 Next experiment (a clearly labelled v2, not a tweak of these numbers): add more wording styles and income scales to the training data, retrain, and score on a new held-out set.
 
+## IBM AML benchmark
+
+The same rules-versus-model question on the public IBM AML dataset (HI-Small, 5.08M transactions, 5,177 laundering). Code is in `src/ibm/`; the full report is `results/ibm_compare.md`. Temporal split 60/20/20 by time; the threshold and class weight are chosen on validation. Numbers are for the **test** period (base rate 0.18%).
+
+| System | Alerts | Precision | Recall | Minority F1 | PR-AUC | Precision@100 |
+|---|---|---|---|---|---|---|
+| Rules (any of R1-R5) | 167,778 | 0.003 | 0.283 | 0.006 | n/a | n/a |
+| LightGBM | 1,655 | 0.532 | 0.490 | 0.510 | 0.460 | 0.95 |
+| Hybrid (model OR R3) | 18,383 | 0.052 | 0.533 | 0.095 | n/a | n/a |
+
+The model beats the rules on every typology except UNLISTED, the laundering rows the patterns file does not describe (recall 1.3%, against 42.6% for the rules). The hybrid recovers some of them (14.8%) but costs about ten times the alerts. Giving the laundering class a large weight made the model worse, so the chosen weight is 1.0. Features use only past transactions (see `tests/test_ibm_leakage.py`).
+
+Run with `python -m src.ibm.compare` (about 15 minutes on a laptop; needs `data/HI-Small_Trans.csv` and `data/HI-Small_Patterns.txt`).
+
 ## Quick start
 
 Works today:

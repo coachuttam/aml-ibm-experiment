@@ -50,10 +50,10 @@ def budget_rows(truth: np.ndarray, scores: np.ndarray, budgets: Sequence[int]) -
 
 
 def curve(truth: np.ndarray, scores: np.ndarray, max_alerts: int) -> np.ndarray:
-    """Recall at evenly spaced budgets up to `max_alerts`, as an array of (alerts, recall) rows."""
+    """Recall at log-spaced budgets (even spacing would look like a straight line on a log axis) up to `max_alerts`, as an array of (alerts, recall) rows."""
     found = np.cumsum(truth[np.argsort(-scores, kind="stable")])
     max_alerts = min(max_alerts, len(truth))
-    counts = np.unique(np.linspace(1, max_alerts, CURVE_POINTS).astype(int))
+    counts = np.unique(np.geomspace(1, max_alerts, CURVE_POINTS).astype(int))
     return np.column_stack([counts, found[counts - 1] / max(int(truth.sum()), 1)])
 
 

@@ -71,13 +71,28 @@ Most-used model features (split counts): receiver_in_degree (132), log_amount_pa
 | is_round_amount | 64 | 0.0% |
 | is_very_round_amount | 0 | 0.0% |
 
+## Alert budget (test period)
+
+| Alert budget | Recall | Precision |
+|---|---|---|
+| 167,778 | 0.978 | 0.0105 |
+| 50,000 | 0.897 | 0.0322 |
+| 25,000 | 0.854 | 0.0614 |
+| 10,000 | 0.742 | 0.1334 |
+| 1,655 | 0.490 | 0.5317 |
+
+The model needs **715 alerts** to match the rules' recall of 28.3%.
+
+![Recall versus alerts](ibm_recall_vs_alerts.png)
+
 ## Investigations of the top 20 test alerts
 
 - Investigated the 20 highest-scored test alerts; 19 of them are truly laundering.
-- Typology accuracy against the patterns file on those alerts: 8 of 19 (42%).
-- Same classifier on every test-period laundering row with a listed typology: 499 of 1339 (37%).
-- Typologies suggested: Bipartite, Fan-in, Gather-scatter, Scatter-gather.
-- The typology classifier is a LightGBM model trained on training-period laundering rows only. Each investigation is saved in `results/ibm_investigations.jsonl`; nothing is filed or sent.
+- Typology accuracy against the patterns file, top 20 alerts: graph checks + fallback 7 of 19 (37%); classifier only 8 of 19 (42%).
+- Typology accuracy, every test-period laundering row with a listed typology: graph checks + fallback 542 of 1339 (40%); classifier only 499 of 1339 (37%).
+- Graph checks decided 60% of the top 20 and 48% of all test rows; the classifier filled the rest. Settings chosen on the training period: fan degree k = 8, cycles up to 5 payments.
+- Typologies suggested for the top 20: Bipartite, Fan-in, Gather-scatter, Scatter-gather.
+- Graph checks look at the 7-day payment neighbourhood (cycle, scatter-gather, bipartite, fan-in/out, gather-scatter). The fallback is a LightGBM classifier trained on training-period laundering rows only. Each investigation is saved in `results/ibm_investigations.jsonl`; nothing is filed or sent.
 
 ## Notes
 

@@ -14,6 +14,10 @@ The same rules-versus-model question on the public IBM AML dataset (HI-Small, 5.
 
 **Headline:** the LightGBM ranking model matches the rules' recall (28.3%) with **715 alerts instead of 167,778**, and at the rules' budget of 167,778 alerts it finds **97.8%** of laundering.
 
+![IBM pipeline (this repo)](docs/ibm_architecture.png)
+
+*IBM pipeline (this repo)*
+
 | System | Alerts | Precision | Recall | Minority F1 | PR-AUC | Precision@100 |
 |---|---|---|---|---|---|---|
 | Rules (any of R1-R5) | 167,778 | 0.003 | 0.283 | 0.006 | n/a | n/a |
@@ -62,6 +66,8 @@ Docs: [PRD](PRD.md) · [Architecture](ARCHITECTURE.md) · [Design system](DESIGN
 5. **Investigate** through six fixed steps, ending with the analyst's decision and an audit log. Each computed finding links to the transaction rows it was computed from, in the app and in the exported case note.
 
 The model labels and explains; Python counts. The model never produces a number that is not already in its input, and a check enforces it.
+
+Architecture of the original investigator (Project 1, synthetic rupee alerts). The IBM pipeline is shown above.
 
 ![Architecture diagram](docs/architecture.png)
 

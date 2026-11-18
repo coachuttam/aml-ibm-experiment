@@ -23,10 +23,11 @@ from src.audit import AUDIT_LOG, append_event
 from src.case_note import GuardrailError
 from src.case_store import AWAITING_ANALYST, CASE_FOLDER, NEEDS_REVIEW_STATUS, Case, StepRecord, save_case
 from src.ibm.case_text import AlertFacts, build_findings, draft_case_note, draft_report, typology_words
-from src.ibm.evidence import Evidence, TransactionIndex, build_evidence, subset_for_alerts
+from src.ibm.evidence import Evidence, TransactionIndex, build_evidence
+from src.ibm.graph_typology import choose_config, classify_by_graph
 from src.ibm.loader import NOT_LAUNDERING, UNLISTED_TYPOLOGY
 from src.ibm.train import temporal_split
-from src.ibm.typology import predict_typologies, train_typology_classifier
+from src.ibm.typology import out_of_fold_typologies, predict_typologies, train_typology_classifier
 
 TOP_ALERT_COUNT = 20
 RECORDS_PATH = Path("results/ibm_investigations.jsonl")
@@ -38,7 +39,7 @@ def account_name(bank: object, account: object) -> str:
     return "%s/%s" % (bank, account)
 
 
-def facts_for(frame_row: pd.Series, txn_id: int, score: float, typology: str) -> AlertFacts:
+def facts_for(frame_row: pd.Series, txn_id: int, score: float, typology: str, reason: str = "") -> AlertFacts:
     """The alert's own fields, ready for the note."""
     return AlertFacts(
         alert_id="IBM-%d" % txn_id,
@@ -50,6 +51,7 @@ def facts_for(frame_row: pd.Series, txn_id: int, score: float, typology: str) ->
         currency=str(frame_row["payment_currency"]),
         score=float(score),
         typology=typology,
+        reason=reason,
     )
 
 
@@ -136,9 +138,8 @@ def listed_laundering_positions(frame: pd.DataFrame, period: slice) -> np.ndarra
     return np.flatnonzero(listed.to_numpy()) + (period.start or 0)
 
 
-def collect_evidence(frame: pd.DataFrame, positions: np.ndarray) -> Dict[int, Evidence]:
+def collect_evidence(frame: pd.DataFrame, positions: np.ndarray, index: TransactionIndex) -> Dict[int, Evidence]:
     """Evidence for each position, keyed by transaction id."""
-    index = TransactionIndex(subset_for_alerts(frame, positions))
     return {int(frame.index[p]): build_evidence(index, int(frame.index[p])) for p in positions}
 
 
@@ -149,6 +150,18 @@ def typology_accuracy(truths: List[str], guesses: List[str]) -> Dict[str, float]
     return {"rows": len(pairs), "correct": correct, "accuracy": correct / len(pairs) if pairs else 0.0}
 
 
+def combine_guesses(index, txn_ids, config, fallback_guesses):
+    """Graph verdict first; the classifier's guess when no graph check fires. Returns (typology, reason, source)."""
+    combined = []
+    for txn_id, backup in zip(txn_ids, fallback_guesses):
+        verdict = classify_by_graph(index, txn_id, config)
+        if verdict is None:
+            combined.append((backup, "", "classifier"))
+        else:
+            combined.append((verdict.typology, verdict.reason, "graph"))
+    return combined
+
+
 def run_investigations(
     frame: pd.DataFrame,
     scores: np.ndarray,
@@ -156,36 +169,52 @@ def run_investigations(
     case_folder: Path = CASE_FOLDER,
     log_path: Path = AUDIT_LOG,
 ) -> Dict[str, object]:
-    """Train the typology classifier on the training period, investigate the top test alerts, score them."""
+    """Investigate the top test alerts with graph checks (classifier as fallback) and score the typologies."""
     train, _, test = temporal_split(len(frame))
     train_positions = listed_laundering_positions(frame, train)
     test_positions = listed_laundering_positions(frame, test)
     top = top_positions(scores, test, count)
-    evidence = collect_evidence(frame, np.concatenate([train_positions, test_positions, top]))
+    index = TransactionIndex(frame)
+    evidence = collect_evidence(frame, np.concatenate([train_positions, test_positions, top]), index)
     train_ids = [int(frame.index[p]) for p in train_positions]
-    classifier = train_typology_classifier(
-        [evidence[i] for i in train_ids], [frame.at[i, "typology"] for i in train_ids]
-    )
-    records = build_records(frame, scores, top, evidence, classifier, case_folder, log_path)
+    train_truths = [frame.at[i, "typology"] for i in train_ids]
+    classifier = train_typology_classifier([evidence[i] for i in train_ids], train_truths)
+    # Tune on out-of-fold guesses, so the fallback is as honest on training rows as it will be on test rows.
+    fallback = out_of_fold_typologies([evidence[i] for i in train_ids], train_truths)
+    config = choose_config(index, train_ids, train_truths, fallback)
+    top_ids = [int(frame.index[p]) for p in top]
     test_ids = [int(frame.index[p]) for p in test_positions]
-    guesses = predict_typologies(classifier, [evidence[i] for i in test_ids])
-    return {
-        "records": records,
-        "top_accuracy": typology_accuracy([r["true_typology"] for r in records], [r["typology"] for r in records]),
-        "test_accuracy": typology_accuracy([frame.at[i, "typology"] for i in test_ids], guesses),
-        "top_really_laundering": sum(1 for r in records if r["true_typology"] != NOT_LAUNDERING),
-    }
+    scored = {}
+    for name, ids in (("top", top_ids), ("test", test_ids)):
+        backups = predict_typologies(classifier, [evidence[i] for i in ids], UNKNOWN_TYPOLOGY)
+        scored[name] = (backups, combine_guesses(index, ids, config, backups))
+    records = build_records(frame, scores, top, evidence, scored["top"][1], case_folder, log_path)
+    return summarise(frame, records, test_ids, scored, config)
 
 
-def build_records(frame, scores, top, evidence, classifier, case_folder, log_path) -> List[Dict[str, object]]:
+def summarise(frame, records, test_ids, scored, config) -> Dict[str, object]:
+    """Old (classifier only) and new (graph plus fallback) typology accuracy, for the top alerts and all of test."""
+    top_truths = [r["true_typology"] for r in records]
+    test_truths = [frame.at[i, "typology"] for i in test_ids]
+    result: Dict[str, object] = {"records": records, "graph_config": asdict(config)}
+    for name, truths in (("top", top_truths), ("test", test_truths)):
+        backups, combined = scored[name]
+        result["classifier_%s_accuracy" % name] = typology_accuracy(truths, backups)
+        result["%s_accuracy" % name] = typology_accuracy(truths, [guess[0] for guess in combined])
+        result["%s_graph_share" % name] = sum(1 for guess in combined if guess[2] == "graph") / max(len(combined), 1)
+    result["top_really_laundering"] = sum(1 for r in records if r["true_typology"] != NOT_LAUNDERING)
+    return result
+
+
+def build_records(frame, scores, top, evidence, guesses, case_folder, log_path) -> List[Dict[str, object]]:
     """Investigate each top alert and attach the true typology for scoring."""
     ids = [int(frame.index[p]) for p in top]
-    guesses = predict_typologies(classifier, [evidence[i] for i in ids], UNKNOWN_TYPOLOGY)
     records = []
-    for position, txn_id, guess in zip(top, ids, guesses):
-        facts = facts_for(frame.iloc[position], txn_id, scores[position], guess)
+    for position, txn_id, (typology, reason, source) in zip(top, ids, guesses):
+        facts = facts_for(frame.iloc[position], txn_id, scores[position], typology, reason)
         record = investigate_alert(facts, evidence[txn_id], case_folder, log_path)
         record["true_typology"] = str(frame.at[txn_id, "typology"])
+        record["typology_source"] = source
         records.append(record)
     return records
 

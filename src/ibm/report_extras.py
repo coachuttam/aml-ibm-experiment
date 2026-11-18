@@ -37,20 +37,35 @@ def ablation_row(scores: ModelScores) -> List[str]:
     ]
 
 
+def accuracy_text(score: Dict[str, float]) -> str:
+    return "%d of %d (%.0f%%)" % (score["correct"], score["rows"], 100 * score["accuracy"])
+
+
 def investigation_lines(investigation: Dict[str, object]) -> List[str]:
-    """Plain-English summary of the top-alert investigations and the typology score."""
-    top, wide = investigation["top_accuracy"], investigation["test_accuracy"]
+    """Plain-English summary of the top-alert investigations and the typology scores (old versus new)."""
     records = investigation["records"]
     guesses = sorted({typology_words(record["typology"]) for record in records})
+    config = investigation["graph_config"]
     return [
         "- Investigated the %d highest-scored test alerts; %d of them are truly laundering."
         % (len(records), investigation["top_really_laundering"]),
-        "- Typology accuracy against the patterns file on those alerts: %d of %d (%.0f%%)."
-        % (top["correct"], top["rows"], 100 * top["accuracy"]),
-        "- Same classifier on every test-period laundering row with a listed typology: %d of %d (%.0f%%)."
-        % (wide["correct"], wide["rows"], 100 * wide["accuracy"]),
-        "- Typologies suggested: %s." % ", ".join(guesses),
-        "- The typology classifier is a LightGBM model trained on training-period laundering rows only. "
+        "- Typology accuracy against the patterns file, top 20 alerts: graph checks + fallback %s; "
+        "classifier only %s."
+        % (accuracy_text(investigation["top_accuracy"]), accuracy_text(investigation["classifier_top_accuracy"])),
+        "- Typology accuracy, every test-period laundering row with a listed typology: graph checks + fallback %s; "
+        "classifier only %s."
+        % (accuracy_text(investigation["test_accuracy"]), accuracy_text(investigation["classifier_test_accuracy"])),
+        "- Graph checks decided %.0f%% of the top 20 and %.0f%% of all test rows; the classifier filled the rest. "
+        "Settings chosen on the training period: fan degree k = %d, cycles up to %d payments."
+        % (
+            100 * investigation["top_graph_share"],
+            100 * investigation["test_graph_share"],
+            config["degree_min"],
+            config["max_cycle_hops"],
+        ),
+        "- Typologies suggested for the top 20: %s." % ", ".join(guesses),
+        "- Graph checks look at the 7-day payment neighbourhood (cycle, scatter-gather, bipartite, fan-in/out, "
+        "gather-scatter). The fallback is a LightGBM classifier trained on training-period laundering rows only. "
         "Each investigation is saved in `results/ibm_investigations.jsonl`; nothing is filed or sent.",
     ]
 

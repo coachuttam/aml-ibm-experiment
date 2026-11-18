@@ -47,6 +47,7 @@ class AlertFacts:
     currency: str
     score: float
     typology: str
+    reason: str = ""  # the counted graph check behind the typology, if one fired
 
 
 def typology_words(name: str) -> str:
@@ -96,6 +97,8 @@ def build_findings(facts: AlertFacts, evidence: Evidence) -> List[str]:
             days,
         ),
     ]
+    if facts.reason:
+        findings.append("Pattern check: %s" % facts.reason)
     if n["receiver_paid_sender_back_7d"] > 0:
         findings.append(
             "Receiver paid the sender back %s in the %s."

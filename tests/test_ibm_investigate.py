@@ -130,3 +130,12 @@ def test_run_investigations_works_end_to_end_on_a_tiny_frame(tmp_path):
     result = run_investigations(frame, scores, count=2, case_folder=tmp_path / "c", log_path=tmp_path / "log.jsonl")
     assert len(result["records"]) == 2
     assert {"top_accuracy", "test_accuracy", "top_really_laundering"} <= set(result)
+
+
+def test_out_of_fold_guesses_have_one_guess_per_alert():
+    from src.ibm.typology import out_of_fold_typologies
+
+    frame = fan_out_frame()
+    evidence = [evidence_for(frame, i) for i in range(5)]
+    guesses = out_of_fold_typologies(evidence, ["FAN_OUT", "CYCLE", "FAN_OUT", "CYCLE", "FAN_OUT"], folds=2)
+    assert len(guesses) == 5

@@ -69,7 +69,10 @@ class TransactionIndex:
         self.seconds = (subset["timestamp"] - EPOCH).dt.total_seconds().to_numpy().astype(np.int64)
         self.sent_by = subset.groupby("from_code").indices
         self.received_by = subset.groupby("to_code").indices
-        self.row_of = {txn_id: position for position, txn_id in enumerate(subset.index)}
+
+    def position_of(self, txn_id: int) -> int:
+        """Where a transaction id sits in the table."""
+        return int(self.subset.index.get_loc(txn_id))
 
     def window(self, lookup: Dict[int, np.ndarray], code: int, end: int, length: int) -> np.ndarray:
         """Positions of this account's rows with time in [end - length, end]."""
@@ -133,7 +136,7 @@ def _cross_bank_share(rows: pd.DataFrame) -> float:
 
 def build_evidence(index: TransactionIndex, txn_id: int) -> Evidence:
     """Evidence for the transaction with this id."""
-    position = index.row_of[txn_id]
+    position = index.position_of(txn_id)
     row = index.subset.iloc[position]
     sender, receiver, end = int(row["from_code"]), int(row["to_code"]), int(index.seconds[position])
     numbers = count_numbers(index, sender, receiver, end, row["amount_paid"])

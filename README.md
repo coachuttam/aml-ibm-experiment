@@ -4,6 +4,8 @@ This repo extends [aml-alert-investigator](https://github.com/coachuttam/aml-ale
 Headline: the LightGBM ranking model matches the rules' 28.3% recall with 715 alerts instead of 167,778, and reaches 97.8% recall at the rules' alert budget.
 Chart: recall versus alerts (the rules are one point), below.
 
+**New to AML?** Read the [Plain-English explainer](docs/EXPLAINED.md).
+
 ![Recall versus alerts](results/ibm_recall_vs_alerts.png)
 
 ## IBM AML benchmark

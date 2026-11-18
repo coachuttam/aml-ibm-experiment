@@ -1,7 +1,7 @@
 # AML Alert Investigator
 
 This repo extends [aml-alert-investigator](https://github.com/coachuttam/aml-alert-investigator) with an ML ranking layer, benchmarked on IBM AML HI-Small (5.08M transactions).
-Headline: the model matches the rules' 28.3% recall with 715 alerts instead of 167,778, and reaches 97.8% recall at the rules' alert budget.
+Headline: the LightGBM ranking model matches the rules' 28.3% recall with 715 alerts instead of 167,778, and reaches 97.8% recall at the rules' alert budget.
 Chart: recall versus alerts (the rules are one point), below.
 
 ![Recall versus alerts](results/ibm_recall_vs_alerts.png)
@@ -10,7 +10,7 @@ Chart: recall versus alerts (the rules are one point), below.
 
 The same rules-versus-model question on the public IBM AML dataset (HI-Small, 5.08M transactions, 5,177 laundering). Code is in `src/ibm/`; the full report is `results/ibm_compare.md`. Temporal split 60/20/20 by time; the threshold and class weight are chosen on validation. Numbers are for the **test** period (base rate 0.18%).
 
-**Headline:** the model matches the rules' recall (28.3%) with **715 alerts instead of 167,778**, and at the rules' budget of 167,778 alerts it finds **97.8%** of laundering.
+**Headline:** the LightGBM ranking model matches the rules' recall (28.3%) with **715 alerts instead of 167,778**, and at the rules' budget of 167,778 alerts it finds **97.8%** of laundering.
 
 | System | Alerts | Precision | Recall | Minority F1 | PR-AUC | Precision@100 |
 |---|---|---|---|---|---|---|
@@ -21,7 +21,7 @@ The same rules-versus-model question on the public IBM AML dataset (HI-Small, 5.
 
 ![Recall versus alerts](results/ibm_recall_vs_alerts.png)
 
-- **Alert budget:** recall is 97.8% at 167,778 alerts, 89.7% at 50,000, 85.4% at 25,000, 74.2% at 10,000 and 49.0% at 1,655.
+- **Alert budget:** 715 alerts → 28.3% (matches rules); recall is 97.8% at 167,778 alerts, 89.7% at 50,000, 85.4% at 25,000, 74.2% at 10,000 and 49.0% at 1,655.
 - **Ablation caveat:** removing the payment format feature drops minority F1 from 0.510 to 0.233 and precision@100 from 0.95 to 0.73, so much of the model's edge comes from how the money moved (format), not only from account behaviour.
 - **Typology is still weak:** graph checks on the 7-day neighbourhood, with a classifier as fallback, name the typology correctly for 40% of test laundering rows (classifier alone 37%) and 7 of 19 on the top 20. The model also misses the laundering rows the patterns file does not describe (recall 1.3%).
 - **Original rupee task:** on held-out data the fine-tuned model scores 0.94 accuracy against 0.19 for the base model (`results/finetune_summary.md`; held-out answers are re-read, not re-run).
@@ -35,6 +35,8 @@ Run with `python -m src.ibm.compare` (about 15 minutes on a laptop; needs `data/
 - [aml-ibm-finetune](https://github.com/coachuttam/aml-ibm-finetune): the fine-tuning work for the IBM AML data.
 
 ## Original investigator (from aml-alert-investigator)
+
+Carried over from aml-alert-investigator; status/roadmap refer to that project.
 
 
 A small open language model, fine-tuned with QLoRA, that reads an anti-money-laundering alert and returns a typology, a risk level and a one-line reason. A fixed investigation workflow wraps it, and an analyst approves or overrides every verdict.
@@ -154,7 +156,7 @@ aml-alert-investigator/
 
 This is a prototype. The gaps below are the work between it and something a bank could run. They are listed because knowing them is part of the job.
 
-**Deployment inside the bank.** Customer transactions cannot leave the bank's control, so the model has to run on their hardware or inside their own cloud account. The classifier is an open-weights model with a 74 MB adapter, so this is a deployment question, not a licensing one — no request leaves the building. Today it runs on a laptop or a hosted GPU.
+**Deployment inside the bank.** Customer transactions cannot leave the bank's control, so the model has to run on their hardware or inside their own cloud account. The classifier is an open-weights model with a 74 MB adapter, so this is a deployment question, not a licensing one. Inside a bank it would run on the bank's own hardware, so no request leaves the building. Today the Live run tab sends derived features to a hosted model (see Security and privacy); the local-model option keeps everything on the machine.
 
 **Audit store.** Every step, model answer and analyst decision is already logged, but to local JSON lines. A bank needs an append-only store with retention set by policy, where a record cannot be altered after it is written, and the log has to survive the application being redeployed.
 
@@ -162,7 +164,7 @@ This is a prototype. The gaps below are the work between it and something a bank
 
 **Monitoring.** Scores on synthetic data say nothing about live accuracy. In production the signals to watch are input drift (transaction mixes change), alert volume per typology, the rate at which the output checker rejects an answer, and above all the analyst override rate, which is the only continuous measure of whether the model is still right.
 
-**Data handling.** Names and account numbers need masking before they reach the model, encryption at rest, and access scoped by role. Nothing here calls a third-party API at inference time, which keeps that surface small.
+**Data handling.** Names and account numbers need masking before they reach the model, encryption at rest, and access scoped by role. The Live run tab sends only derived features (no names or account IDs) to a hosted model on Modal; the local-model option avoids even that.
 
 **Filing.** Under Section 12 of the PMLA, suspicious transactions are reported to FIU-IND, electronically through FINnet 2.0. A production system would draft that report from the case file for a human to review and submit. This system deliberately stops earlier: it says "refer for review" and files nothing.
 
@@ -170,7 +172,7 @@ This is a prototype. The gaps below are the work between it and something a bank
 
 - Synthetic data only; no real customer data and no credentials in the repository.
 - Training happens on Colab with synthetic data. Secrets (such as a GitHub or Hugging Face token) are kept in Colab Secrets, never in notebooks.
-- No customer data is sent to any external service at inference time unless the optional prompted-Claude baseline is run, which uses synthetic alerts only.
+- Live run sends derived features (computed counts and amounts; no names or account IDs) to a hosted model on Modal. The local-model option (`AML_LOCAL_MODEL=1`) keeps everything on the machine. The optional prompted-Claude baseline uses synthetic alerts only.
 
 ### AI tools used and key workflows
 

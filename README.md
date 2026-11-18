@@ -69,7 +69,7 @@ The model labels and explains; Python counts. The model never produces a number 
 
 Architecture of the original investigator (Project 1, synthetic rupee alerts). The IBM pipeline is shown above.
 
-![Architecture diagram](docs/architecture.png)
+![Architecture diagram](docs/project1_architecture.png)
 
 Green boxes are built. Details are in [ARCHITECTURE.md](ARCHITECTURE.md).
 

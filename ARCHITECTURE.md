@@ -4,9 +4,9 @@ The model labels and explains; Python counts. Features are computed in Python, t
 
 ## Pipeline
 
-![Architecture diagram](docs/architecture.png)
+![Architecture diagram](docs/project1_architecture.png)
 
-Green boxes are built and tested. The editable source is `docs/architecture.mmd` (Mermaid); re-draw it with `mmdc -i docs/architecture.mmd -o docs/architecture.png -w 1800 -s 2 -b white`.
+Green boxes are built and tested. The editable source is `docs/project1_architecture.mmd` (Mermaid); re-draw it with `mmdc -i docs/project1_architecture.mmd -o docs/project1_architecture.png -w 1800 -s 2 -b white`.
 
 Training runs on Colab; everything else runs on the laptop.
 

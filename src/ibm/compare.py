@@ -11,9 +11,16 @@ from typing import Dict, List, Optional
 
 import pandas as pd
 
+from src.ibm.budget import CHART_PATH, alerts_needed_for_recall, budget_rows, draw_chart
 from src.ibm.hybrid import best_rule_for_typology, hybrid_flags
 from src.ibm.investigate import run_investigations, save_records
-from src.ibm.report_extras import ablation_row, gain_table_rows, investigation_lines
+from src.ibm.report_extras import (
+    ablation_row,
+    budget_section,
+    gain_table_rows,
+    investigation_lines,
+    markdown_table,
+)
 from src.ibm.rules import RULES, run_rules, score_flags
 from src.ibm.train import (
     ModelScores,
@@ -46,12 +53,6 @@ def recall_by_typology(frame: pd.DataFrame, flagged: pd.Series, period: slice) -
         mask = part["typology"] == typology
         result[typology] = float(flagged.iloc[period][mask].mean())
     return result
-
-
-def markdown_table(header: List[str], rows: List[List[str]]) -> str:
-    lines = ["| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
-    lines += ["| " + " | ".join(row) + " |" for row in rows]
-    return "\n".join(lines)
 
 
 def model_row(name: str, scores: ModelScores) -> List[str]:
@@ -91,6 +92,18 @@ def best_rule_row(frame: pd.DataFrame, flags: pd.DataFrame, period: slice) -> Li
     ]
 
 
+def budget_sections(frame: pd.DataFrame, flags: pd.DataFrame, result: Dict[str, object], test: slice) -> List[str]:
+    """Recall at several alert budgets, the budget that matches the rules, and the chart (saved as a PNG)."""
+    truth = frame["is_laundering"].to_numpy()[test]
+    scores = result["scores"][test]
+    rules = score_flags(flags["any_rule"].iloc[test], frame["is_laundering"].iloc[test])
+    budgets = [rules["alerts"], 50_000, 25_000, 10_000, result["test"].alerts]
+    needed = alerts_needed_for_recall(truth, scores, rules["recall"])
+    draw_chart(truth, scores, [rules["alerts"], rules["recall"]], CHART_PATH)
+    rows = budget_rows(truth, scores, budgets)
+    return budget_section(rows, needed, rules["recall"], CHART_PATH.name)
+
+
 def build_report(
     frame: pd.DataFrame,
     flags: pd.DataFrame,
@@ -123,6 +136,7 @@ def build_report(
         "## Feature importance (total gain, full model)",
         markdown_table(["Feature", "Gain", "Share"], gain_table_rows(result["model"])),
     ]
+    sections += budget_sections(frame, flags, result, test)
     if investigation is not None:
         sections += ["## Investigations of the top 20 test alerts", "\n".join(investigation_lines(investigation))]
     return (

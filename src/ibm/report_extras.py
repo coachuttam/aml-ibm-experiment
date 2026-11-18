@@ -10,6 +10,13 @@ from src.ibm.train import ModelScores, gain_importance
 ABLATION_NAME = "LightGBM − payment format"
 
 
+def markdown_table(header: List[str], rows: List[List[str]]) -> str:
+    """A markdown table from a header and rows of text."""
+    lines = ["| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
+    lines += ["| " + " | ".join(row) + " |" for row in rows]
+    return "\n".join(lines)
+
+
 def gain_table_rows(model) -> List[List[str]]:
     """Feature, total gain and share of all gain, largest first."""
     pairs = gain_importance(model)
@@ -46,3 +53,13 @@ def investigation_lines(investigation: Dict[str, object]) -> List[str]:
         "- The typology classifier is a LightGBM model trained on training-period laundering rows only. "
         "Each investigation is saved in `results/ibm_investigations.jsonl`; nothing is filed or sent.",
     ]
+
+
+def budget_section(rows: List[List[str]], needed: int, rules_recall: float, chart_name: str) -> List[str]:
+    """Markdown for the alert-budget table, the match-the-rules number and the chart link."""
+    table = markdown_table(["Alert budget", "Recall", "Precision"], rows)
+    match = "The model needs **%s alerts** to match the rules' recall of %.1f%%." % (
+        "{:,}".format(needed),
+        100 * rules_recall,
+    )
+    return ["## Alert budget (test period)", table, match, "![Recall versus alerts](%s)" % chart_name]

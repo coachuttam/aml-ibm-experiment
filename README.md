@@ -52,17 +52,24 @@ Next experiment (a clearly labelled v2, not a tweak of these numbers): add more 
 
 The same rules-versus-model question on the public IBM AML dataset (HI-Small, 5.08M transactions, 5,177 laundering). Code is in `src/ibm/`; the full report is `results/ibm_compare.md`. Temporal split 60/20/20 by time; the threshold and class weight are chosen on validation. Numbers are for the **test** period (base rate 0.18%).
 
+**Headline:** the model matches the rules' recall (28.3%) with **715 alerts instead of 167,778**, and at the rules' budget of 167,778 alerts it finds **97.8%** of laundering.
+
 | System | Alerts | Precision | Recall | Minority F1 | PR-AUC | Precision@100 |
 |---|---|---|---|---|---|---|
 | Rules (any of R1-R5) | 167,778 | 0.003 | 0.283 | 0.006 | n/a | n/a |
 | LightGBM | 1,655 | 0.532 | 0.490 | 0.510 | 0.460 | 0.95 |
 | Hybrid (model OR R3) | 18,383 | 0.052 | 0.533 | 0.095 | n/a | n/a |
+| LightGBM − payment format | 2,477 | 0.201 | 0.277 | 0.233 | 0.159 | 0.73 |
 
-The model beats the rules on every typology except UNLISTED, the laundering rows the patterns file does not describe (recall 1.3%, against 42.6% for the rules). The hybrid recovers some of them (14.8%) but costs about ten times the alerts. Giving the laundering class a large weight made the model worse, so the chosen weight is 1.0. Features use only past transactions (see `tests/test_ibm_leakage.py`).
+![Recall versus alerts](results/ibm_recall_vs_alerts.png)
 
-Ablation: removing the payment format feature drops minority F1 from 0.510 to 0.233 and precision@100 from 0.95 to 0.73, so much of the model's edge comes from how the money moved (format), not only from the account behaviour. Alert budget: at the rules' 167,778 alerts the model finds 97.8% of laundering (rules: 28.3%), and it needs only 715 alerts to match the rules' recall; see `results/ibm_compare.md` and `results/ibm_recall_vs_alerts.png`. The `IBM alerts` tab in the app shows the top 20 alerts with evidence, case note and a draft report. Typology is named by graph checks on the 7-day neighbourhood with a classifier as fallback: 40% on all test laundering rows (classifier alone 37%) and 7 of 19 on the top 20 (classifier alone 8 of 19), so naming the typology is still weak.
+- **Alert budget:** recall is 97.8% at 167,778 alerts, 89.7% at 50,000, 85.4% at 25,000, 74.2% at 10,000 and 49.0% at 1,655.
+- **Ablation caveat:** removing the payment format feature drops minority F1 from 0.510 to 0.233 and precision@100 from 0.95 to 0.73, so much of the model's edge comes from how the money moved (format), not only from account behaviour.
+- **Typology is still weak:** graph checks on the 7-day neighbourhood, with a classifier as fallback, name the typology correctly for 40% of test laundering rows (classifier alone 37%) and 7 of 19 on the top 20. The model also misses the laundering rows the patterns file does not describe (recall 1.3%).
+- **Original rupee task:** on held-out data the fine-tuned model scores 0.94 accuracy against 0.19 for the base model (`results/finetune_summary.md`; held-out answers are re-read, not re-run).
+- **Demo:** the `IBM alerts` tab lists three cached demo alerts first (clear fan-out, cycle, borderline; see `results/demo_alerts.md`), then the top 20 alerts, each with evidence, case note and a draft report. Nothing is filed or sent. Features use only past transactions (see `tests/test_ibm_leakage.py`).
 
-Run with `python -m src.ibm.compare` (about 15 minutes on a laptop; needs `data/HI-Small_Trans.csv` and `data/HI-Small_Patterns.txt`).
+Run with `python -m src.ibm.compare` (about 15 minutes on a laptop; needs `data/HI-Small_Trans.csv` and `data/HI-Small_Patterns.txt`). `python -m src.ibm.demo_cache` rebuilds the demo cache.
 
 ## Quick start
 

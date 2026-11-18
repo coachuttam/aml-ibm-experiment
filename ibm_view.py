@@ -14,6 +14,7 @@ import streamlit as st
 
 from evidence_view import show_table
 from src.ibm.case_text import typology_words
+from src.ibm.demo_cache import load_demo_records
 from src.ibm.investigate import load_records
 
 STEP_MARKS = {
@@ -24,12 +25,24 @@ STEP_MARKS = {
 }
 
 
+def merge_with_demo(demo: List[Dict[str, object]], top: List[Dict[str, object]]) -> List[Dict[str, object]]:
+    """Cached demo alerts first, then the top alerts, with no alert listed twice."""
+    demo_ids = {record["alert_id"] for record in demo}
+    return demo + [record for record in top if record["alert_id"] not in demo_ids]
+
+
+def alert_label(record: Dict[str, object]) -> str:
+    """The selector text: the id, plus the demo role when there is one."""
+    role = record.get("demo_role")
+    return "%s (demo: %s)" % (record["alert_id"], role) if role else str(record["alert_id"])
+
+
 def alert_table(records: List[Dict[str, object]]) -> pd.DataFrame:
     """One row per alert for the list."""
     return pd.DataFrame(
         [
             {
-                "Alert": r["alert_id"],
+                "Alert": alert_label(r),
                 "Time": r["time"],
                 "Score": round(r["score"], 3),
                 "Suggested typology": typology_words(r["typology"]),
@@ -63,7 +76,7 @@ def show_steps(record: Dict[str, object]) -> None:
 
 
 def show_ibm_alerts() -> None:
-    records = load_records()
+    records = merge_with_demo(load_demo_records(), load_records() or [])
     if not records:
         st.info(
             "No IBM investigations yet. Run `python -m src.ibm.compare` to make them "
@@ -71,11 +84,17 @@ def show_ibm_alerts() -> None:
         )
         return
     st.caption(
-        "The 20 highest-scored test-period alerts from the LightGBM model on the public IBM AML data. "
+        "Demo alerts first, then the 20 highest-scored test-period alerts from the LightGBM model "
+        "on the public IBM AML data. "
         "Python counted every number. Nothing has been filed or sent."
     )
     show_table(alert_table(records))
-    chosen = st.selectbox("Open an alert", [r["alert_id"] for r in records], key="ibm_alert_choice")
+    chosen = st.selectbox(
+        "Open an alert",
+        [r["alert_id"] for r in records],
+        key="ibm_alert_choice",
+        format_func=lambda alert_id: alert_label(next(r for r in records if r["alert_id"] == alert_id)),
+    )
     record = next(r for r in records if r["alert_id"] == chosen)
     evidence_tab, note_tab, report_tab, steps_tab = st.tabs(["Evidence", "Case note", "Draft report", "Steps"])
     with evidence_tab:

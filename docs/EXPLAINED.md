@@ -59,7 +59,7 @@ Good results deserve suspicion, so we tried to break them.
 
 - **Naming the pattern is weak.** The system names the typology correctly for about **40%** of test laundering rows. It is better at deciding *which payments to look at* than at saying *what scheme it is*.
 - **Unlisted laundering is mostly missed.** Recall on those rows is 1.3%.
-- **Linking payments into one case** is the next step. Today each alert is judged on its own, so a scheme spread across many payments is not yet seen as one case. In a follow-up experiment (github.com/coachuttam/aml-ibm-finetune, results/case_typology.md), classifying the whole group of linked payments instead of a single payment named the pattern correctly 76.8% of the time (95 attempts, time-only split). Most flagged alerts are single payments, which is why linking alerts into cases is the next step.
+- **Linking payments into one case** is the next step. Today each alert is judged on its own, so a scheme spread across many payments is not yet seen as one case. In a follow-up experiment (github.com/coachuttam/aml-ibm-finetune, results/case_typology.md), classifying the whole group of linked payments instead of a single payment named the pattern correctly 76.8% of the time (95 attempts, time-only split). Most flagged alerts are single payments.
 - **Synthetic data.** Real banks have messier data, real customers and shifting behaviour. These scores say nothing about live accuracy. Amounts are also in each row's own currency, with no exchange rates.
 - **Next:** a sandbox pilot on a bank's own historical alerts, with its analysts, measuring how many cases they would have closed sooner and how often they overrule the system.
 
